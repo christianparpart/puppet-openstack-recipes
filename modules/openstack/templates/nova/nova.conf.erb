@@ -96,7 +96,7 @@ fixed_ip_disassociate_timeout=1209600
 force_dhcp_release=true
 
 # Our datacenter internal domain
-dhcp_domain=<%= scope.lookupvar("openstack_dhcp_domain")
+dhcp_domain=<%= scope.lookupvar("openstack_dhcp_domain") %>
 
 # hosts management IP address
 my_ip=<%= scope.lookupvar("::ipaddress") %>
