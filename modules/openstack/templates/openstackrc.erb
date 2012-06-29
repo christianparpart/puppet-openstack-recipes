@@ -1,0 +1,13 @@
+# vim:syntax=sh
+
+export OS_TENANT_NAME="<%= scope.lookupvar("openstack_admin_tenant_name") %>"
+
+export OS_USERNAME="<%= scope.lookupvar("openstack_admin_username") %>"
+export OS_PASSWORD="<%= scope.lookupvar("openstack_admin_password") %>"
+
+export OS_AUTH_URL="http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:5000/v2.0/"
+
+export OS_REGION_NAME="<%= scope.lookupvar("openstack_region")  %>"
+
+# --
+export OS_AUTH_STRATEGY=keystone

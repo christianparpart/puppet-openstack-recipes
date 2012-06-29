@@ -1,0 +1,30 @@
+#! /bin/bash
+# vim:ts=4:sw=4:noet:ai
+
+do_config() {
+	echo "graph_category openstack"
+	echo "graph_title Nova CPU allocation"
+	echo "graph_vlabel Allocated CPUs"
+	echo "graph_order allocated physical"
+	echo "graph_args --base 1 -l 0 --vertical-label CPUs" #" --upper-limit"
+
+	echo "physical.label physical"
+	echo "physical.draw LINE2"
+	echo "physical.info Physical CPUs available to host node."
+
+	echo "allocated.label allocated"
+	echo "allocated.draw AREA"
+	echo "allocated.info Virtual CPUs allocated by virtual machine instances."
+}
+
+do_fetch() {
+	local VALUES=( $(nova-manage service describe_resource ${HOSTNAME} 2>/dev/null | grep ${HOSTNAME} | awk '{print $3}') ) 
+	echo "physical.value ${VALUES[0]}"
+	echo "allocated.value ${VALUES[1]}"
+}
+
+case "$1" in
+	config) do_config ;;
+	fetch) do_fetch ;;
+	*) do_fetch ;;
+esac

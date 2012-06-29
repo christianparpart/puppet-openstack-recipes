@@ -1,0 +1,121 @@
+From 27133eed735c6d5c8015b1bc40d89b55df3a984b Mon Sep 17 00:00:00 2001
+From: Dan Prince <dprince@redhat.com>
+Date: Fri, 1 Jun 2012 10:34:11 -0400
+Subject: [PATCH] Implements resume_state_on_host_boot for libvirt.
+
+Adds a new virt driver function to help resume guest states
+on host boot. This fixes a couple issue with using a reboot
+(like we did previously):
+
+ * Using reboot would clear some task states (VERIFY_RESIZE for example)
+ * Provides a mechanism for hypervisor specific guest restarts.
+   Reboot would not have worked for XenServer for example...
+ * Updates libvirt to use a hard reboot (instead of soft)
+
+Fixes LP Bug #985162.
+
+Change-Id: Iaf5aad75ec9b91f44710a18ddaf3a93378573a62
+(cherry picked from commit 6548c509f1780a7168f26de6f2045ec7d5768520)
+---
+ nova/compute/manager.py         |   10 ++++++++--
+ nova/tests/test_virt_drivers.py |    6 ++++++
+ nova/virt/driver.py             |    4 ++++
+ nova/virt/fake.py               |    3 +++
+ nova/virt/libvirt/connection.py |    7 +++++++
+ 5 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/nova/compute/manager.py b/nova/compute/manager.py
+index 053e80e..ed41874 100644
+--- a/nova/compute/manager.py
++++ b/nova/compute/manager.py
+@@ -246,15 +246,21 @@ class ComputeManager(manager.SchedulerDependentManager):
+             LOG.debug(_('Current state is %(drv_state)s, state in DB is '
+                         '%(db_state)s.'), locals(), instance=instance)
+ 
++            net_info = self._get_instance_nw_info(context, instance)
+             if ((expect_running and FLAGS.resume_guests_state_on_host_boot) or
+                 FLAGS.start_guests_on_host_boot):
+                 LOG.info(_('Rebooting instance after nova-compute restart.'),
+                          locals(), instance=instance)
+-                self.reboot_instance(context, instance['uuid'])
++                try:
++                    self.driver.resume_state_on_host_boot(context, instance,
++                                self._legacy_nw_info(net_info))
++                except NotImplementedError:
++                    LOG.warning(_('Hypervisor driver does not support '
++                                  'resume guests'), instance=instance)
++
+             elif drv_state == power_state.RUNNING:
+                 # Hyper-V and VMWareAPI drivers will raise an exception
+                 try:
+-                    net_info = self._get_instance_nw_info(context, instance)
+                     self.driver.ensure_filtering_rules_for_instance(instance,
+                                                 self._legacy_nw_info(net_info))
+                 except NotImplementedError:
+diff --git a/nova/tests/test_virt_drivers.py b/nova/tests/test_virt_drivers.py
+index 5929265..d1cf7c6 100644
+--- a/nova/tests/test_virt_drivers.py
++++ b/nova/tests/test_virt_drivers.py
+@@ -143,6 +143,12 @@ class _VirtDriverTestCase(test.TestCase):
+                                      'd41d8cd98f00b204e9800998ecf8427e')
+ 
+     @catch_notimplementederror
++    def test_resume_state_on_host_boot(self):
++        instance_ref, network_info = self._get_running_instance()
++        self.connection.resume_state_on_host_boot(self.ctxt, instance_ref,
++                                                  network_info)
++
++    @catch_notimplementederror
+     def test_rescue(self):
+         instance_ref, network_info = self._get_running_instance()
+         self.connection.rescue(self.ctxt, instance_ref, network_info, None)
+diff --git a/nova/virt/driver.py b/nova/virt/driver.py
+index 9658273..5a3862e 100644
+--- a/nova/virt/driver.py
++++ b/nova/virt/driver.py
+@@ -335,6 +335,10 @@ class ComputeDriver(object):
+         # TODO(Vek): Need to pass context in for access to auth_token
+         raise NotImplementedError()
+ 
++    def resume_state_on_host_boot(self, context, instance, network_info):
++        """resume guest state when a host is booted"""
++        raise NotImplementedError()
++
+     def rescue(self, context, instance, network_info, image_meta):
+         """Rescue the specified instance"""
+         raise NotImplementedError()
+diff --git a/nova/virt/fake.py b/nova/virt/fake.py
+index 6be69bd..60620ec 100644
+--- a/nova/virt/fake.py
++++ b/nova/virt/fake.py
+@@ -131,6 +131,9 @@ class FakeConnection(driver.ComputeDriver):
+     def agent_update(self, instance, url, md5hash):
+         pass
+ 
++    def resume_state_on_host_boot(self, context, instance, network_info):
++        pass
++
+     def rescue(self, context, instance, network_info, image_meta):
+         pass
+ 
+diff --git a/nova/virt/libvirt/connection.py b/nova/virt/libvirt/connection.py
+index 37a6c2c..e0943ba 100644
+--- a/nova/virt/libvirt/connection.py
++++ b/nova/virt/libvirt/connection.py
+@@ -825,6 +825,13 @@ class LibvirtConnection(driver.ComputeDriver):
+         dom.create()
+ 
+     @exception.wrap_exception()
++    def resume_state_on_host_boot(self, context, instance, network_info):
++        """resume guest state when a host is booted"""
++        # NOTE(dprince): use hard reboot to ensure network and firewall
++        # rules are configured
++        self._hard_reboot(instance, network_info)
++
++    @exception.wrap_exception()
+     def rescue(self, context, instance, network_info, image_meta):
+         """Loads a VM using rescue images.
+ 
+-- 
+1.7.8.6
+

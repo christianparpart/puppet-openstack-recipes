@@ -1,0 +1,150 @@
+# vim:syntax=dosini
+[DEFAULT]
+use_console_monitor=True
+
+<% if scope.lookupvar("hostname") == "cesar1" then %>
+verbose=True
+debug=True
+<% else %>
+verbose=False
+debug=False
+<% end %>
+
+root_helper=sudo nova-rootwrap
+
+dhcpbridge_flagfile=/etc/nova/nova.conf
+dhcpbridge=/usr/bin/nova-dhcpbridge
+logdir=/var/log/nova
+state_path=/var/lib/nova
+lock_path=/var/lock/nova
+
+allow_admin_api=true
+use_deprecated_auth=false
+auth_strategy=keystone
+
+# ---------------------------------------------------------------------------
+# (VM) scheduler
+
+#scheduler_driver=nova.scheduler.simple.SimpleScheduler
+#scheduler_driver=nova.scheduler.distributed_scheduler.FilterScheduler
+scheduler_available_filters=nova.scheduler.filters.standard_filters
+scheduler_default_filters=RamFilter,CoreFilter,ComputeFilter,SameHostFilter,DifferentHostFilter,AvailabilityZoneFilter
+# ---------------------------------------------------------------------------
+
+s3_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+ec2_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+rabbit_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+metadata_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+cc_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+nova_url=http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:8774/v1.1/
+glance_api_servers=<%= scope.lookupvar("openstack_cc_ipaddr") %>:9292
+image_service=nova.image.glance.GlanceImageService
+glance_host=<%= scope.lookupvar("openstack_cc_ipaddr") %>
+sql_connection=mysql://<%= scope.lookupvar("openstack_nova_dbusername") %>:<%= scope.lookupvar("openstack_nova_dbpassword") %>@<%= scope.lookupvar("openstack_cc_ipaddr") %>/<%= scope.lookupvar("openstack_nova_dbname") %>
+
+ec2_url=http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:8773/services/Cloud
+keystone_ec2_url=http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:5000/v2.0/ec2tokens
+
+api_paste_config=/etc/nova/api-paste.ini
+
+connection_type=libvirt
+libvirt_type=kvm
+libvirt_use_virtio_for_bridges=true
+
+# XXX This feature seems not fully implemented, and causes enforced VM reboots instead, https://review.openstack.org/#/c/8035/
+# XXX We also seem to have to disable start_guests_on_host_boot :-(
+#resume_guests_state_on_host_boot=true
+#start_guests_on_host_boot=true
+start_guests_on_host_boot=false
+resume_guests_state_on_host_boot=false
+
+max_cores=<%= scope.lookupvar("::processorcount") %>
+skip_isolated_core_check=True
+cpu_allocation_ratio=16.0
+ram_allocation_ratio=1.5
+
+# LVM volume group for Nova volumes
+volume_group=nova-volumes
+
+# ----- VNC
+vnc_enabled=true
+
+# These flags help construct a connection data structure
+vncserver_proxyclient_address=<%= scope.lookupvar("::ipaddress_eth0") %>
+novncproxy_base_url=http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:6080/vnc_auto.html
+xvpvncproxy_base_url=http://<%= scope.lookupvar("openstack_cc_ipaddr") %>:6081/console
+
+# This is the address where the underlying vncserver (i.e. KVM, not the proxy)
+# will listen for connections.
+vncserver_listen=0.0.0.0
+
+# ----- nova: generic network settings --------------------------------------
+# Public IP of network host. When instances without a floating IP hit the Internet, traffic is snatted to this IP address.
+routing_source_ip=<%= scope.lookupvar("openstack_network_gw_public_ipaddr") %>
+network_size=<%= scope.lookupvar("openstack_network_size") %>
+
+# DHCP lease time of an IP address (259200 = 3 days, 608400 = 7 days)
+# we keep this value relatively high since we've a big enough network with
+# much space left and in case of emergency (dhcp server dies / does not respond),
+# the VM instance MUST NOT stop working - no matter what.
+dhcp_lease_time=608400
+
+# two-week disassociate timeout of fixed IPs
+fixed_ip_disassociate_timeout=1209600
+
+# release leases immediately on terminate
+force_dhcp_release=true
+
+# Our datacenter internal domain
+dhcp_domain=<%= scope.lookupvar("openstack_dhcp_domain")
+
+# hosts management IP address
+my_ip=<%= scope.lookupvar("::ipaddress") %>
+
+# ----- network: FlatDHCP mode ----------------------------------------------
+#network_manager=nova.network.manager.FlatDHCPManager
+#flat_interface=br0
+#public_interface=br0
+#fixed_range=10.10.0.0/16
+
+# ----- network: VLAN mode --------------------------------------------------
+network_manager=nova.network.manager.VlanManager
+vlan_interface=eth0
+vlan_start=100
+fixed_range=10.10.0.0/16
+public_interface=eth1
+
+# ----- private network -----------------------------------------------------
+flat_injected=False
+
+# ----- Nova-Network HA (master/slave) --------------------------------------
+# We're running in fail-over HA mode, thus, no network service on every compute node,
+# but two dedicated hosts (cesar1/cesar2) in master/slave mode, guarded via keepalived (or friends).
+# (DEFAULT) multi_host=False
+send_arp_for_ha=True
+
+# ----- Nova-Network HA (multi-master) --------------------------------------
+# In this mode, every compute node has its own nova-network instance,
+# apart from its own nova-api service, and thus,
+# we need to tell Nova about this topology.
+#multi_host=True
+# (DEFAULT) send_arp_for_ha=False
+#enabled_apis=ec2,osapi_compute,osapi_volume,metadata
+
+# ----- public network ------------------------------------------------------
+#floating_range=46.231.176.100/28
+
+# ----- iSCSI (nova-volume) -------------------------------------------------
+iscsi_helper=tgtadm
+iscsi_ip_prefix=10.10.5
+
+# ----- VPN (Cloudpipe) -----------------------------------------------------
+# number of IPs to reserve for VPN clients
+cnt_vpn_clients=32
+# have per-project CA's, enabling use to use CRLs
+use_project_ca=True
+# Glance Image ID to the VM image to launch as VPN server
+vpn_image_id=6081edf2-0045-473a-a215-17f85cd497ae
+
+# ----- misc. ---------------------------------------------------------------
+superuser_roles=CloudAdmin

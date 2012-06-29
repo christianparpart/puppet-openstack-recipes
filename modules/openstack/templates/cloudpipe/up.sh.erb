@@ -1,0 +1,8 @@
+#! /bin/sh
+
+BR=$1
+DEV=$2
+MTU=$3
+
+ifconfig $DEV mtu $MTU promisc up
+brctl addif $BR $DEV

@@ -1,0 +1,23 @@
+#! /usr/bin/env bash
+# vim:ts=4:sw=4:noet:ai
+
+do_config() {
+	echo "graph_category openstack"
+	echo "graph_title Nova Instance Count"
+	echo "graph_vlabel Number of instances"
+	echo "graph_order count"
+
+	echo "count.label count"
+	echo "count.draw AREA"
+	echo "count.info Number of instances running on given compute node"
+}
+
+do_fetch() {
+	echo "count.value $(nova-manage vm list | grep -c ${HOSTNAME})"
+}
+
+case "$1" in
+	config) do_config ;;
+	fetch) do_fetch ;;
+	*) do_fetch ;;
+esac

@@ -1,0 +1,7 @@
+#! /bin/sh
+
+BR=$1
+DEV=$2
+
+brctl delif $BR $DEV
+ifconfig $DEV down
